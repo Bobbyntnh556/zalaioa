@@ -269,7 +269,7 @@ const renderRulesDisplay = (text) => {
   });
 };
 
-// Функция для получения вкладки из URL с безопасной обработкой (try/catch для изолированных сред)
+// Функция для получения вкладки из URL с безопасной обработкой
 const getTabFromUrl = () => {
   if (typeof window === 'undefined') return 'dashboard';
   try {
@@ -314,7 +314,7 @@ export default function App() {
   
   const hasCountedForLoad = useRef(false);
 
-  // Безопасная синхронизация URL при изменении вкладки (try/catch для SecurityError)
+  // Безопасная синхронизация URL при изменении вкладки
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -324,7 +324,7 @@ export default function App() {
           window.history.pushState({}, '', url);
         }
       } catch (error) {
-        // Игнорируем SecurityError в песочницах (iframe), где pushState заблокирован
+        // Игнорируем SecurityError в песочницах
       }
     }
   }, [activeTab]);
@@ -339,7 +339,7 @@ export default function App() {
     }
   }, []);
 
-  // Защита доступа к вкладкам в зависимости от роли (включая гостя)
+  // Строгая защита доступа к вкладкам в зависимости от роли (включая гостя)
   useEffect(() => {
     if (currentUser) {
       if (activeTab === 'admin' && currentUser.role !== 'admin') {
@@ -370,7 +370,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Подсчет посещений (засчитывается каждая загрузка страницы / нажатие F5)
+  // Подсчет посещений
   useEffect(() => {
     if (currentUser && db && !hasCountedForLoad.current) {
       hasCountedForLoad.current = true;
@@ -384,7 +384,6 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser && users.length > 0) {
-      // Игнорируем синхронизацию для виртуального гостя
       if (currentUser.role === 'guest') return;
       
       const syncedUser = users.find(u => u.dbId === currentUser.dbId);
@@ -473,7 +472,14 @@ export default function App() {
     };
   }, [firebaseUser]);
 
+  // ==========================================
+  // БЛОК ФУНКЦИЙ С УСИЛЕННОЙ ЗАЩИТОЙ (GUARDS)
+  // ==========================================
+
   const handleUpdateWarnings = async (targetDbId, newCount) => {
+    // SECURITY GUARD: Только администратор может менять выговоры
+    if (!currentUser || currentUser.role !== 'admin') return; 
+    
     try {
       if (db) {
         const userRef = getDocument('yard_users', targetDbId);
@@ -485,6 +491,9 @@ export default function App() {
   };
 
   const handleUpdateRank = async (targetDbId, newRank) => {
+    // SECURITY GUARD: Только администратор может менять ранг
+    if (!currentUser || currentUser.role !== 'admin') return;
+    
     try {
       if (db) {
         const userRef = getDocument('yard_users', targetDbId);
@@ -495,8 +504,136 @@ export default function App() {
     }
   };
 
+  const handleSaveRules = async () => {
+    // SECURITY GUARD: Только администратор может сохранять правила
+    if (!currentUser || currentUser.role !== 'admin') return;
+
+    try {
+      if (db) {
+        const rulesRef = getDocument('yard_settings', 'rules_v2');
+        await setDoc(rulesRef, { text: editedRules });
+        setIsEditingRules(false);
+      }
+    } catch (err) {
+      console.error("Ошибка при сохранении устава:", err);
+    }
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    
+    // SECURITY GUARD: Только администратор может создавать аккаунты
+    if (!currentUser || currentUser.role !== 'admin') {
+      setAdminUserMessage('У вас нет прав для этого действия.');
+      return; 
+    }
+
+    // Санитаризация данных (защита от пустых пробелов)
+    const safeUsername = newUser.username.trim();
+    const safePassword = newUser.password.trim();
+    const safeInGameName = newUser.inGameName.trim();
+
+    if (!safeUsername || !safePassword || !safeInGameName) {
+      setAdminUserMessage('Заполните все поля корректно!');
+      return;
+    }
+
+    if (users.find(u => u.username === safeUsername)) {
+      setAdminUserMessage('Пользователь с таким логином уже существует!');
+      return;
+    }
+    
+    const nextId = users.length > 0 ? Math.max(...users.map(u => u.numericId || 0)) + 1 : 1;
+    
+    try {
+      if (db) {
+        const usersRef = getCol('yard_users');
+        await addDoc(usersRef, { 
+          ...newUser, 
+          username: safeUsername,
+          password: safePassword,
+          inGameName: safeInGameName,
+          numericId: nextId 
+        });
+        setAdminUserMessage(`Пользователь ${safeUsername} успешно добавлен!`);
+        setNewUser({ username: '', password: '', inGameName: '', role: 'user', rank: 'new', warnings: 0 });
+      }
+    } catch (err) {
+      setAdminUserMessage('Ошибка при добавлении в базу данных.');
+    }
+    
+    setTimeout(() => setAdminUserMessage(''), 3000);
+  };
+
+  const handleSaveStats = async (e) => {
+    e.preventDefault();
+    
+    // SECURITY GUARD: Только админ
+    if (!currentUser || currentUser.role !== 'admin') return;
+
+    try {
+      if (db) {
+        await setDoc(getDocument('yard_settings', 'stats'), editStats);
+        setAdminStatsMessage('Статистика успешно обновлена!');
+        setTimeout(() => setAdminStatsMessage(''), 3000);
+      }
+    } catch (err) {
+      console.error("Ошибка при сохранении статистики:", err);
+    }
+  };
+
+  const handleAddNews = async (e) => {
+    e.preventDefault();
+    
+    // SECURITY GUARD: Только админ
+    if (!currentUser || currentUser.role !== 'admin') return;
+
+    // Санитаризация данных
+    const safeTitle = newPost.title.trim();
+    const safeContent = newPost.content.trim();
+
+    if (!safeTitle || !safeContent) {
+      setAdminNewsMessage('Поля не могут быть пустыми.');
+      setTimeout(() => setAdminNewsMessage(''), 3000);
+      return;
+    }
+
+    try {
+      if (db) {
+        await addDoc(getCol('yard_news'), {
+          title: safeTitle,
+          content: safeContent,
+          timestamp: Date.now(),
+          dateStr: new Date().toLocaleDateString('ru-RU')
+        });
+        setNewPost({ title: '', content: '' });
+        setAdminNewsMessage('Новость опубликована!');
+        setTimeout(() => setAdminNewsMessage(''), 3000);
+      }
+    } catch (err) {
+      console.error("Ошибка при добавлении новости:", err);
+    }
+  };
+
+  const handleDeleteNews = async (newsId) => {
+    // SECURITY GUARD: Только админ
+    if (!currentUser || currentUser.role !== 'admin') return;
+
+    try {
+      if (db) {
+        await deleteDoc(getDocument('yard_news', newsId));
+      }
+    } catch (err) {
+      console.error("Ошибка при удалении новости:", err);
+    }
+  };
+
   const handleChangePassword = async (e) => {
     e.preventDefault();
+    
+    // SECURITY GUARD: Гости не могут менять пароль
+    if (!currentUser || currentUser.role === 'guest') return;
+
     if (!settingsOldPass || !settingsNewPass) {
       setSettingsMessage({ text: 'Заполните все поля', type: 'error' });
       return;
@@ -505,14 +642,14 @@ export default function App() {
       setSettingsMessage({ text: 'Текущий пароль введен неверно', type: 'error' });
       return;
     }
-    if (settingsNewPass.length < 3) {
+    if (settingsNewPass.trim().length < 3) {
       setSettingsMessage({ text: 'Новый пароль слишком короткий', type: 'error' });
       return;
     }
     try {
       if (db) {
         const userRef = getDocument('yard_users', currentUser.dbId);
-        await updateDoc(userRef, { password: settingsNewPass });
+        await updateDoc(userRef, { password: settingsNewPass.trim() });
         setSettingsMessage({ text: 'Пароль успешно изменен!', type: 'success' });
         setSettingsOldPass('');
         setSettingsNewPass('');
@@ -522,6 +659,8 @@ export default function App() {
       setSettingsMessage({ text: 'Ошибка при смене пароля', type: 'error' });
     }
   };
+
+  // ==========================================
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -577,87 +716,6 @@ export default function App() {
     setLoginUser('');
     setLoginPass('');
     setActiveTab('dashboard');
-  };
-
-  const handleSaveRules = async () => {
-    try {
-      if (db) {
-        const rulesRef = getDocument('yard_settings', 'rules_v2');
-        await setDoc(rulesRef, { text: editedRules });
-        setIsEditingRules(false);
-      }
-    } catch (err) {
-      console.error("Ошибка при сохранении устава:", err);
-    }
-  };
-
-  const handleAddUser = async (e) => {
-    e.preventDefault();
-    if (!newUser.username || !newUser.password || !newUser.inGameName) {
-      setAdminUserMessage('Заполните все поля!');
-      return;
-    }
-    if (users.find(u => u.username === newUser.username)) {
-      setAdminUserMessage('Пользователь с таким логином уже существует!');
-      return;
-    }
-    
-    const nextId = users.length > 0 ? Math.max(...users.map(u => u.numericId || 0)) + 1 : 1;
-    
-    try {
-      if (db) {
-        const usersRef = getCol('yard_users');
-        await addDoc(usersRef, { ...newUser, numericId: nextId });
-        setAdminUserMessage(`Пользователь ${newUser.username} успешно добавлен!`);
-        setNewUser({ username: '', password: '', inGameName: '', role: 'user', rank: 'new', warnings: 0 });
-      }
-    } catch (err) {
-      setAdminUserMessage('Ошибка при добавлении в базу данных.');
-    }
-    
-    setTimeout(() => setAdminUserMessage(''), 3000);
-  };
-
-  const handleSaveStats = async (e) => {
-    e.preventDefault();
-    try {
-      if (db) {
-        await setDoc(getDocument('yard_settings', 'stats'), editStats);
-        setAdminStatsMessage('Статистика успешно обновлена!');
-        setTimeout(() => setAdminStatsMessage(''), 3000);
-      }
-    } catch (err) {
-      console.error("Ошибка при сохранении статистики:", err);
-    }
-  };
-
-  const handleAddNews = async (e) => {
-    e.preventDefault();
-    if (!newPost.title || !newPost.content) return;
-    try {
-      if (db) {
-        await addDoc(getCol('yard_news'), {
-          ...newPost,
-          timestamp: Date.now(),
-          dateStr: new Date().toLocaleDateString('ru-RU')
-        });
-        setNewPost({ title: '', content: '' });
-        setAdminNewsMessage('Новость опубликована!');
-        setTimeout(() => setAdminNewsMessage(''), 3000);
-      }
-    } catch (err) {
-      console.error("Ошибка при добавлении новости:", err);
-    }
-  };
-
-  const handleDeleteNews = async (newsId) => {
-    try {
-      if (db) {
-        await deleteDoc(getDocument('yard_news', newsId));
-      }
-    } catch (err) {
-      console.error("Ошибка при удалении новости:", err);
-    }
   };
 
   if (!currentUser) {
