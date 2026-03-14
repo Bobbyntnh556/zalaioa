@@ -484,6 +484,17 @@ export default function App() {
     }
   };
 
+  const handleUpdateRank = async (targetDbId, newRank) => {
+    try {
+      if (db) {
+        const userRef = getDocument('yard_users', targetDbId);
+        await updateDoc(userRef, { rank: newRank });
+      }
+    } catch (err) {
+      console.error("Ошибка при обновлении ранга:", err);
+    }
+  };
+
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (!settingsOldPass || !settingsNewPass) {
@@ -938,9 +949,27 @@ export default function App() {
                         {user.inGameName}
                       </td>
                       <td className="p-5">
-                        <span className="px-3 py-1 bg-white/5 rounded-lg text-xs font-bold text-white border border-white/10 group-hover:bg-white/10 transition-colors duration-300">
-                          {user.rank}
-                        </span>
+                        {currentUser.role === 'admin' ? (
+                          <select
+                            value={user.rank}
+                            onChange={(e) => handleUpdateRank(user.dbId, e.target.value)}
+                            className="bg-black/50 border border-white/10 text-white rounded-lg px-3 py-1 text-xs font-bold focus:outline-none focus:border-white/30 cursor-pointer hover:bg-white/10 transition-colors"
+                          >
+                            <option value="new">new</option>
+                            <option value="farm">farm</option>
+                            <option value="main">main</option>
+                            <option value="recrut">recrut</option>
+                            <option value="triada">triada</option>
+                            <option value="high">high</option>
+                            <option value="dep boss">dep boss</option>
+                            <option value="boss">boss</option>
+                            <option value="Leader">Leader</option>
+                          </select>
+                        ) : (
+                          <span className="px-3 py-1 bg-white/5 rounded-lg text-xs font-bold text-white border border-white/10 group-hover:bg-white/10 transition-colors duration-300">
+                            {user.rank}
+                          </span>
+                        )}
                       </td>
                       <td className="p-5">
                         <div className="flex items-center space-x-3">
