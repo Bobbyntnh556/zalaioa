@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, onSnapshot, addDoc, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, addDoc, doc, setDoc, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 
 // Встроенный компонент иконок (замена внешнему lucide-react для совместимости в песочнице)
 const Icon = ({ name, className = "", title }) => {
@@ -25,7 +25,8 @@ const Icon = ({ name, className = "", title }) => {
     Minus: <><line x1="5" y1="12" x2="19" y2="12"/></>,
     Trash2: <><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>,
     FileText: <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>,
-    Activity: <><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>
+    Activity: <><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>,
+    Eye: <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></>
   };
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -309,6 +310,9 @@ export default function App() {
   const [editStats, setEditStats] = useState({ cars: 24, territories: 12 });
   const [news, setNews] = useState([]);
   const [newPost, setNewPost] = useState({ title: '', content: '' });
+  const [analytics, setAnalytics] = useState({ totalViews: 0, guestViews: 0, userViews: 0 });
+  
+  const hasCountedForLoad = useRef(false);
 
   // Безопасная синхронизация URL при изменении вкладки (try/catch для SecurityError)
   useEffect(() => {
@@ -365,6 +369,18 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, setFirebaseUser);
     return () => unsubscribe();
   }, []);
+
+  // Подсчет посещений (засчитывается каждая загрузка страницы / нажатие F5)
+  useEffect(() => {
+    if (currentUser && db && !hasCountedForLoad.current) {
+      hasCountedForLoad.current = true;
+      const analyticsRef = getDocument('yard_settings', 'analytics');
+      setDoc(analyticsRef, {
+        totalViews: increment(1),
+        [currentUser.role === 'guest' ? 'guestViews' : 'userViews']: increment(1)
+      }, { merge: true }).catch(console.error);
+    }
+  }, [currentUser, db]);
 
   useEffect(() => {
     if (currentUser && users.length > 0) {
@@ -441,11 +457,19 @@ export default function App() {
       setNews(fetchedNews.sort((a, b) => b.timestamp - a.timestamp));
     }, (error) => console.error("Ошибка загрузки новостей:", error));
 
+    const analyticsRef = getDocument('yard_settings', 'analytics');
+    const unsubscribeAnalytics = onSnapshot(analyticsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setAnalytics(docSnap.data());
+      }
+    }, (error) => console.error("Ошибка загрузки аналитики:", error));
+
     return () => {
       unsubscribeUsers();
       unsubscribeRules();
       unsubscribeStats();
       unsubscribeNews();
+      unsubscribeAnalytics();
     };
   }, [firebaseUser]);
 
@@ -1026,6 +1050,29 @@ export default function App() {
             <p className="text-zinc-400 mb-10 font-medium">Управление доступами, составом и контентом сайта.</p>
 
             <div className="space-y-8">
+              
+              {/* АНАЛИТИКА САЙТА */}
+              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8 shadow-xl hover:border-white/20 transition-colors duration-500">
+                <h3 className="text-lg font-black text-white mb-6 flex items-center uppercase tracking-wide">
+                  <Icon name="Eye" className="w-5 h-5 mr-3 text-zinc-400"/>
+                  Посещаемость портала
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-black/50 border border-white/5 p-5 rounded-xl text-center md:text-left">
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Всего визитов</p>
+                    <p className="text-4xl font-black text-white">{analytics.totalViews || 0}</p>
+                  </div>
+                  <div className="bg-black/50 border border-white/5 p-5 rounded-xl text-center md:text-left">
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Авторизованные</p>
+                    <p className="text-4xl font-black text-emerald-400">{analytics.userViews || 0}</p>
+                  </div>
+                  <div className="bg-black/50 border border-white/5 p-5 rounded-xl text-center md:text-left">
+                    <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider mb-1">Гости</p>
+                    <p className="text-4xl font-black text-zinc-400">{analytics.guestViews || 0}</p>
+                  </div>
+                </div>
+              </div>
+
               {/* ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ */}
               <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8 shadow-xl hover:border-white/20 transition-colors duration-500">
                 <h3 className="text-lg font-black text-white mb-6 flex items-center uppercase tracking-wide">
@@ -1117,7 +1164,7 @@ export default function App() {
                 <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8 shadow-xl hover:border-white/20 transition-colors duration-500">
                   <h3 className="text-lg font-black text-white mb-6 flex items-center uppercase tracking-wide">
                     <Icon name="Activity" className="w-5 h-5 mr-3 text-zinc-400"/>
-                    Статистика (Главная)
+                    Настройка статистики
                   </h3>
                   <form onSubmit={handleSaveStats} className="space-y-5">
                     <div>
