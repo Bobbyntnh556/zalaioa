@@ -1,29 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, 
-  Users, 
-  Home, 
-  BookOpen, 
-  LogOut, 
-  UserPlus, 
-  Key, 
-  Car, 
-  Crosshair,
-  Trophy,
-  Edit,
-  Save,
-  X,
-  Settings,
-  AlertTriangle,
-  Plus,
-  Minus,
-  Trash2,
-  FileText,
-  Activity
-} from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+
+// Встроенный компонент иконок (замена внешнему lucide-react для совместимости в песочнице)
+const Icon = ({ name, className = "", title }) => {
+  const icons = {
+    Shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>,
+    Users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>,
+    Home: <><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></>,
+    BookOpen: <><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>,
+    LogOut: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
+    UserPlus: <><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></>,
+    Key: <><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></>,
+    Car: <><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></>,
+    Crosshair: <><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></>,
+    Trophy: <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></>,
+    Edit: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+    Save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>,
+    X: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+    Settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
+    AlertTriangle: <><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
+    Plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+    Minus: <><line x1="5" y1="12" x2="19" y2="12"/></>,
+    Trash2: <><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></>,
+    FileText: <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>,
+    Activity: <><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>
+  };
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {title && <title>{title}</title>}
+      {icons[name]}
+    </svg>
+  );
+};
 
 const CUSTOM_STYLES = `
 @keyframes scrollLeft {
@@ -74,10 +84,6 @@ const BackgroundMarquee = () => {
 // ==========================================
 // ПОДКЛЮЧЕНИЕ ВАШЕГО FIREBASE ПРОЕКТА
 // ==========================================
-// 1. Создайте проект на console.firebase.google.com
-// 2. В разделе Authentication -> Sign-in method -> Включите "Anonymous"
-// 3. В разделе Firestore Database -> Rules -> установите: allow read, write: if true;
-// 4. Добавьте Web-приложение (</>) и вставьте ваш конфиг сюда:
 const MY_FIREBASE_CONFIG = {
   apiKey: "AIzaSyBkht0iUX4QROFuher8tlE48lRfAFAI3Fs",
   authDomain: "yard-family.firebaseapp.com",
@@ -87,7 +93,6 @@ const MY_FIREBASE_CONFIG = {
   appId: "1:259415571301:web:768b3ea567bfd28e803f8c"
 };
 
-// Определяем, ввели ли вы свои ключи
 const isCustomConfig = MY_FIREBASE_CONFIG.apiKey !== "ТВОЙ_API_KEY";
 
 const firebaseConfig = isCustomConfig 
@@ -102,7 +107,6 @@ if (firebaseConfig) {
 }
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'yard-production';
 
-// Умные пути: если база ваша, то пишутся в корень (красиво), если песочница — во временные папки
 const getCol = (colName) => isCustomConfig ? collection(db, colName) : collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getDocument = (colName, docId) => isCustomConfig ? doc(db, colName, docId) : doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
@@ -264,55 +268,91 @@ const renderRulesDisplay = (text) => {
   });
 };
 
+// Функция для получения вкладки из URL с безопасной обработкой (try/catch для изолированных сред)
+const getTabFromUrl = () => {
+  if (typeof window === 'undefined') return 'dashboard';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const validTabs = ['dashboard', 'members', 'rules', 'admin', 'settings'];
+    return validTabs.includes(tab) ? tab : 'dashboard';
+  } catch (e) {
+    return 'dashboard';
+  }
+};
+
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(getTabFromUrl());
   const [isDbLoaded, setIsDbLoaded] = useState(false);
   
-  // Состояния для логина
   const [loginUser, setLoginUser] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Состояния для добавления нового юзера (Админ панель)
   const [newUser, setNewUser] = useState({ username: '', password: '', inGameName: '', role: 'user', rank: 'new', warnings: 0 });
   const [adminUserMessage, setAdminUserMessage] = useState('');
   const [adminStatsMessage, setAdminStatsMessage] = useState('');
   const [adminNewsMessage, setAdminNewsMessage] = useState('');
 
-  // Состояния для редактирования устава
   const [rulesText, setRulesText] = useState(DEFAULT_RULES);
   const [isEditingRules, setIsEditingRules] = useState(false);
   const [editedRules, setEditedRules] = useState('');
 
-  // Состояния для настроек
   const [settingsOldPass, setSettingsOldPass] = useState('');
   const [settingsNewPass, setSettingsNewPass] = useState('');
   const [settingsMessage, setSettingsMessage] = useState({ text: '', type: '' });
 
-  // Состояния для статистики и новостей
   const [stats, setStats] = useState({ cars: 24, territories: 12 });
   const [editStats, setEditStats] = useState({ cars: 24, territories: 12 });
   const [news, setNews] = useState([]);
   const [newPost, setNewPost] = useState({ title: '', content: '' });
 
-  // 1. Авторизация Firebase
+  // Безопасная синхронизация URL при изменении вкладки (try/catch для SecurityError)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location);
+        if (url.searchParams.get('tab') !== activeTab) {
+          url.searchParams.set('tab', activeTab);
+          window.history.pushState({}, '', url);
+        }
+      } catch (error) {
+        // Игнорируем SecurityError в песочницах (iframe), где pushState заблокирован
+      }
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(getTabFromUrl());
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'admin' && currentUser && currentUser.role !== 'admin') {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, currentUser]);
+
   useEffect(() => {
     if (!auth) return;
     const initAuth = async () => {
       try {
         if (!isCustomConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          // Вход по токену песочницы
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
-          // Вход для вашей базы (Обязательно включите Anonymous Auth в Firebase!)
           await signInAnonymously(auth);
         }
       } catch (err) {
         console.error("Ошибка авторизации:", err);
-        setIsDbLoaded(true); // Разблокируем кнопку даже при ошибке, чтобы было видно
+        setIsDbLoaded(true);
       }
     };
     initAuth();
@@ -320,7 +360,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Синхронизация текущего юзера
   useEffect(() => {
     if (currentUser && users.length > 0) {
       const syncedUser = users.find(u => u.dbId === currentUser.dbId);
@@ -330,17 +369,14 @@ export default function App() {
     }
   }, [users, currentUser?.dbId]);
 
-  // 2. Загрузка данных из Firestore
   useEffect(() => {
     if (!firebaseUser || !db) return;
     
     const usersRef = getCol('yard_users');
     const unsubscribeUsers = onSnapshot(usersRef, (snapshot) => {
       const fetchedUsers = snapshot.docs.map(d => ({ dbId: d.id, ...d.data() }));
-      
       const hasAdmin = fetchedUsers.some(u => u.role === 'admin');
       
-      // Создаем админа по умолчанию, если его еще нет
       if (!hasAdmin) {
         const seedAdmin = async () => {
           try {
@@ -446,8 +482,6 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     
-    // 100% УЛЬТИМАТИВНЫЙ ВХОД ДЛЯ АДМИНА
-    // Пускает всегда, даже если база данных еще не успела загрузиться
     if (loginUser.trim() === 'admin' && loginPass === '#Yard789#million987/.') {
       const defaultAdmin = {
         dbId: 'admin_user',
@@ -460,10 +494,8 @@ export default function App() {
         warnings: 0
       };
       
-      // Берем админа из списка, если успел загрузиться, либо создаем локально
       const adminUser = users.find(u => u.username === 'admin') || defaultAdmin;
       
-      // Принудительно чиним/обновляем его в БД
       if (db) {
         const userRef = getDocument('yard_users', adminUser.dbId);
         setDoc(userRef, { ...adminUser, password: '123!!!', role: 'admin' }, { merge: true }).catch(console.error);
@@ -471,7 +503,6 @@ export default function App() {
       
       setCurrentUser({ ...adminUser, password: '123!!!', role: 'admin' });
       setLoginError('');
-      setActiveTab('dashboard');
       return;
     }
 
@@ -479,7 +510,6 @@ export default function App() {
     if (user) {
       setCurrentUser(user);
       setLoginError('');
-      setActiveTab('dashboard');
     } else {
       setLoginError('Неверный логин или пароль!');
     }
@@ -573,7 +603,6 @@ export default function App() {
     }
   };
 
-  // Экран входа
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
@@ -594,7 +623,7 @@ export default function App() {
               <label className="block text-zinc-400 text-xs uppercase tracking-wider font-bold mb-2 transition-colors duration-300">Логин</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Users className="h-4 w-4 text-zinc-600 group-focus-within:text-white transition-colors duration-300" />
+                  <Icon name="Users" className="h-4 w-4 text-zinc-600 group-focus-within:text-white transition-colors duration-300" />
                 </div>
                 <input
                   type="text"
@@ -610,7 +639,7 @@ export default function App() {
               <label className="block text-zinc-400 text-xs uppercase tracking-wider font-bold mb-2 transition-colors duration-300">Пароль</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Key className="h-4 w-4 text-zinc-600 group-focus-within:text-white transition-colors duration-300" />
+                  <Icon name="Key" className="h-4 w-4 text-zinc-600 group-focus-within:text-white transition-colors duration-300" />
                 </div>
                 <input
                   type="password"
@@ -645,7 +674,6 @@ export default function App() {
     );
   }
 
-  // Основной интерфейс после входа
   return (
     <div className="min-h-screen bg-black text-zinc-200 flex flex-col md:flex-row font-sans relative selection:bg-white/20">
       <style>{CUSTOM_STYLES}</style>
@@ -668,7 +696,7 @@ export default function App() {
             onClick={() => setActiveTab('dashboard')}
             className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 ${activeTab === 'dashboard' ? 'bg-white text-black font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
           >
-            <Home className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'dashboard' ? '' : 'group-hover:scale-125 group-hover:-translate-y-1'}`} />
+            <Icon name="Home" className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'dashboard' ? '' : 'group-hover:scale-125 group-hover:-translate-y-1'}`} />
             <span>Главная</span>
           </button>
           
@@ -676,7 +704,7 @@ export default function App() {
             onClick={() => setActiveTab('members')}
             className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 ${activeTab === 'members' ? 'bg-white text-black font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
           >
-            <Users className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'members' ? '' : 'group-hover:scale-125 group-hover:translate-x-1'}`} />
+            <Icon name="Users" className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'members' ? '' : 'group-hover:scale-125 group-hover:translate-x-1'}`} />
             <span>Состав семьи</span>
           </button>
 
@@ -684,27 +712,25 @@ export default function App() {
             onClick={() => setActiveTab('rules')}
             className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 ${activeTab === 'rules' ? 'bg-white text-black font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
           >
-            <BookOpen className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'rules' ? '' : 'group-hover:scale-125 group-hover:-rotate-12'}`} />
+            <Icon name="BookOpen" className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'rules' ? '' : 'group-hover:scale-125 group-hover:-rotate-12'}`} />
             <span>Устав</span>
           </button>
 
-          {/* Вкладка Админ-панели видна ТОЛЬКО админам */}
           {currentUser.role === 'admin' && (
             <button 
               onClick={() => setActiveTab('admin')}
               className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 mt-4 ${activeTab === 'admin' ? 'bg-zinc-800 text-white font-bold border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
             >
-              <Shield className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'admin' ? '' : 'group-hover:scale-125 group-hover:rotate-12 group-hover:text-white'}`} />
+              <Icon name="Shield" className={`w-4 h-4 transition-all duration-300 ease-out ${activeTab === 'admin' ? '' : 'group-hover:scale-125 group-hover:rotate-12 group-hover:text-white'}`} />
               <span>Админ-панель</span>
             </button>
           )}
 
-          {/* Настройки */}
           <button 
             onClick={() => setActiveTab('settings')}
             className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 mt-4 ${activeTab === 'settings' ? 'bg-white text-black font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
           >
-            <Settings className={`w-4 h-4 transition-all duration-500 ease-in-out ${activeTab === 'settings' ? '' : 'group-hover:rotate-180 group-hover:scale-110'}`} />
+            <Icon name="Settings" className={`w-4 h-4 transition-all duration-500 ease-in-out ${activeTab === 'settings' ? '' : 'group-hover:rotate-180 group-hover:scale-110'}`} />
             <span>Настройки</span>
           </button>
         </nav>
@@ -719,7 +745,7 @@ export default function App() {
               {currentUser.warnings > 0 ? (
                 <div className="flex items-center mt-1">
                   <span className="flex items-center text-[10px] uppercase font-black text-red-400 tracking-wider bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]">
-                    <AlertTriangle className="w-3 h-3 mr-1 animate-pulse" />
+                    <Icon name="AlertTriangle" className="w-3 h-3 mr-1 animate-pulse" />
                     Выговоры: {currentUser.warnings}
                   </span>
                 </div>
@@ -734,7 +760,7 @@ export default function App() {
             onClick={handleLogout}
             className="group w-full py-2.5 bg-white/5 hover:bg-white hover:text-black hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] active:scale-95 transition-all duration-300 flex items-center justify-center text-xs font-bold rounded-xl border border-white/5 hover:border-transparent"
           >
-            <LogOut className="w-3 h-3 mr-2 transition-transform duration-300 group-hover:-translate-x-1" />
+            <Icon name="LogOut" className="w-3 h-3 mr-2 transition-transform duration-300 group-hover:-translate-x-1" />
             Выход
           </button>
         </div>
@@ -755,7 +781,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-zinc-900/40 backdrop-blur-md p-6 rounded-2xl border border-white/10 hover:border-white/30 hover:bg-zinc-900/60 hover:-translate-y-2 hover:shadow-[0_15px_40px_-10px_rgba(255,255,255,0.15)] transition-all duration-300 ease-out flex items-center space-x-5 group cursor-default">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                  <Users className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+                  <Icon name="Users" className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
                 </div>
                 <div>
                   <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">Участников</p>
@@ -765,7 +791,7 @@ export default function App() {
               
               <div className="bg-zinc-900/40 backdrop-blur-md p-6 rounded-2xl border border-white/10 hover:border-white/30 hover:bg-zinc-900/60 hover:-translate-y-2 hover:shadow-[0_15px_40px_-10px_rgba(255,255,255,0.15)] transition-all duration-300 ease-out flex items-center space-x-5 group cursor-default">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10 group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300">
-                  <Car className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+                  <Icon name="Car" className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
                 </div>
                 <div>
                   <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">Автопарк</p>
@@ -775,7 +801,7 @@ export default function App() {
 
               <div className="bg-zinc-900/40 backdrop-blur-md p-6 rounded-2xl border border-white/10 hover:border-white/30 hover:bg-zinc-900/60 hover:-translate-y-2 hover:shadow-[0_15px_40px_-10px_rgba(255,255,255,0.15)] transition-all duration-300 ease-out flex items-center space-x-5 group cursor-default">
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                  <Crosshair className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
+                  <Icon name="Crosshair" className="w-8 h-8 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" />
                 </div>
                 <div>
                   <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">Территории</p>
@@ -786,7 +812,7 @@ export default function App() {
 
             <div className="mt-8 bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-8 hover:border-white/20 transition-colors duration-500">
               <h3 className="text-xl font-black text-white mb-6 flex items-center tracking-wide">
-                <Trophy className="w-5 h-5 mr-3 text-white animate-pulse"/> 
+                <Icon name="Trophy" className="w-5 h-5 mr-3 text-white animate-pulse"/> 
                 НОВОСТИ СЕМЬИ
               </h3>
               <div className="space-y-4">
@@ -802,7 +828,7 @@ export default function App() {
                   ))
                 ) : (
                   <div className="text-center py-10 bg-black/20 rounded-xl border border-white/5">
-                    <FileText className="w-10 h-10 text-zinc-600 mx-auto mb-3 opacity-50" />
+                    <Icon name="FileText" className="w-10 h-10 text-zinc-600 mx-auto mb-3 opacity-50" />
                     <p className="text-zinc-500 text-sm font-medium">Новостей пока нет</p>
                   </div>
                 )}
@@ -857,7 +883,7 @@ export default function App() {
                                 className="p-1.5 bg-black hover:bg-white hover:text-black rounded-md border border-white/10 active:scale-90 transition-all duration-200"
                                 title="Выдать выговор"
                               >
-                                <Plus className="w-3 h-3" />
+                                <Icon name="Plus" className="w-3 h-3" />
                               </button>
                               <button 
                                 onClick={() => handleUpdateWarnings(user.dbId, (user.warnings || 0) - 1)}
@@ -865,7 +891,7 @@ export default function App() {
                                 className="p-1.5 bg-black hover:bg-white hover:text-black rounded-md border border-white/10 active:scale-90 transition-all duration-200 disabled:opacity-30 disabled:hover:bg-black disabled:hover:text-white disabled:active:scale-100"
                                 title="Снять выговор"
                               >
-                                <Minus className="w-3 h-3" />
+                                <Icon name="Minus" className="w-3 h-3" />
                               </button>
                             </div>
                           )}
@@ -874,7 +900,7 @@ export default function App() {
                       <td className="p-5">
                         {user.role === 'admin' ? (
                           <span className="flex items-center text-xs text-black bg-white px-2.5 py-1 rounded-md w-max font-black tracking-wide shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                            <Shield className="w-3 h-3 mr-1.5"/> АДМИН
+                            <Icon name="Shield" className="w-3 h-3 mr-1.5"/> АДМИН
                           </span>
                         ) : (
                           <span className="text-xs font-medium text-zinc-500 w-max group-hover:text-zinc-400 transition-colors duration-300">
@@ -900,7 +926,7 @@ export default function App() {
                   onClick={() => { setEditedRules(rulesText); setIsEditingRules(true); }} 
                   className="px-5 py-2.5 bg-white/10 text-white rounded-xl hover:bg-white hover:text-black hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0.5 transition-all duration-300 border border-white/20 text-sm font-bold flex items-center w-fit shadow-lg"
                 >
-                  <Edit className="w-4 h-4 mr-2" />
+                  <Icon name="Edit" className="w-4 h-4 mr-2" />
                   Редактировать
                 </button>
               )}
@@ -922,14 +948,14 @@ export default function App() {
                       onClick={handleSaveRules} 
                       className="px-8 py-3.5 bg-white text-black font-black tracking-wide rounded-xl hover:bg-zinc-200 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] flex items-center active:scale-95 hover:-translate-y-1"
                     >
-                      <Save className="w-4 h-4 mr-2" />
+                      <Icon name="Save" className="w-4 h-4 mr-2" />
                       СОХРАНИТЬ
                     </button>
                     <button 
                       onClick={() => setIsEditingRules(false)} 
                       className="px-8 py-3.5 bg-transparent text-white border border-white/20 font-bold rounded-xl hover:bg-white/10 transition-all duration-300 flex items-center active:scale-95"
                     >
-                      <X className="w-4 h-4 mr-2" />
+                      <Icon name="X" className="w-4 h-4 mr-2" />
                       Отмена
                     </button>
                   </div>
@@ -947,7 +973,7 @@ export default function App() {
         {activeTab === 'admin' && currentUser.role === 'admin' && (
           <div className="max-w-4xl mx-auto pb-10 animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out">
             <h2 className="text-3xl font-black text-white mb-2 flex items-center tracking-tight">
-              <Shield className="w-8 h-8 mr-3 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"/>
+              <Icon name="Shield" className="w-8 h-8 mr-3 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"/>
               АДМИН-ЦЕНТР
             </h2>
             <p className="text-zinc-400 mb-10 font-medium">Управление доступами, составом и контентом сайта.</p>
@@ -956,7 +982,7 @@ export default function App() {
               {/* ДОБАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯ */}
               <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8 shadow-xl hover:border-white/20 transition-colors duration-500">
                 <h3 className="text-lg font-black text-white mb-6 flex items-center uppercase tracking-wide">
-                  <UserPlus className="w-5 h-5 mr-3 text-zinc-400"/>
+                  <Icon name="UserPlus" className="w-5 h-5 mr-3 text-zinc-400"/>
                   Новый участник
                 </h3>
 
@@ -1033,7 +1059,7 @@ export default function App() {
                     type="submit"
                     className="w-full bg-white hover:bg-zinc-200 text-black font-black tracking-wide py-4 px-4 rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center active:scale-[0.98]"
                   >
-                    <UserPlus className="w-5 h-5 mr-2" />
+                    <Icon name="UserPlus" className="w-5 h-5 mr-2" />
                     СОЗДАТЬ АККАУНТ
                   </button>
                 </form>
@@ -1043,7 +1069,7 @@ export default function App() {
                 {/* СТАТИСТИКА */}
                 <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8 shadow-xl hover:border-white/20 transition-colors duration-500">
                   <h3 className="text-lg font-black text-white mb-6 flex items-center uppercase tracking-wide">
-                    <Activity className="w-5 h-5 mr-3 text-zinc-400"/>
+                    <Icon name="Activity" className="w-5 h-5 mr-3 text-zinc-400"/>
                     Статистика (Главная)
                   </h3>
                   <form onSubmit={handleSaveStats} className="space-y-5">
@@ -1084,7 +1110,7 @@ export default function App() {
                 {/* НОВОСТИ */}
                 <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-8 shadow-xl flex flex-col hover:border-white/20 transition-colors duration-500">
                   <h3 className="text-lg font-black text-white mb-6 flex items-center uppercase tracking-wide">
-                    <FileText className="w-5 h-5 mr-3 text-zinc-400"/>
+                    <Icon name="FileText" className="w-5 h-5 mr-3 text-zinc-400"/>
                     Публикация новостей
                   </h3>
                   
@@ -1114,7 +1140,7 @@ export default function App() {
                       type="submit"
                       className="w-full bg-white hover:bg-zinc-200 text-black font-black tracking-wide py-3.5 rounded-xl shadow-[0_0_15px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] hover:-translate-y-1 transition-all duration-300 active:scale-95 flex items-center justify-center"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
+                      <Icon name="Plus" className="w-4 h-4 mr-2" />
                       ОПУБЛИКОВАТЬ
                     </button>
                   </form>
@@ -1131,7 +1157,7 @@ export default function App() {
                           className="p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-all duration-200 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 active:scale-90"
                           title="Удалить новость"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Icon name="Trash2" className="w-4 h-4" />
                         </button>
                       </div>
                     )) : (
@@ -1148,14 +1174,14 @@ export default function App() {
         {activeTab === 'settings' && (
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out">
             <h2 className="text-3xl font-black text-white mb-2 flex items-center tracking-tight">
-              <Settings className="w-8 h-8 mr-3 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"/>
+              <Icon name="Settings" className="w-8 h-8 mr-3 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"/>
               НАСТРОЙКИ
             </h2>
             <p className="text-zinc-400 mb-10 font-medium">Безопасность и личные данные аккаунта.</p>
 
             <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 md:p-10 shadow-2xl hover:border-white/20 transition-colors duration-500">
               <h3 className="text-lg font-black text-white mb-8 flex items-center uppercase tracking-wide">
-                <Key className="w-5 h-5 mr-3 text-zinc-400" />
+                <Icon name="Key" className="w-5 h-5 mr-3 text-zinc-400" />
                 Смена пароля
               </h3>
 
@@ -1191,7 +1217,7 @@ export default function App() {
                   type="submit"
                   className="bg-white text-black font-black tracking-wide py-4 px-8 rounded-xl hover:bg-zinc-200 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:-translate-y-1 transition-all duration-300 active:scale-95 flex items-center justify-center w-full md:w-auto"
                 >
-                  <Save className="w-5 h-5 mr-2" />
+                  <Icon name="Save" className="w-5 h-5 mr-2" />
                   ОБНОВИТЬ ПАРОЛЬ
                 </button>
               </form>
