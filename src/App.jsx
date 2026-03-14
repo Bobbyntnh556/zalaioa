@@ -335,9 +335,15 @@ export default function App() {
     }
   }, []);
 
+  // Защита доступа к вкладкам в зависимости от роли (включая гостя)
   useEffect(() => {
-    if (activeTab === 'admin' && currentUser && currentUser.role !== 'admin') {
-      setActiveTab('dashboard');
+    if (currentUser) {
+      if (activeTab === 'admin' && currentUser.role !== 'admin') {
+        setActiveTab('dashboard');
+      }
+      if (activeTab === 'settings' && currentUser.role === 'guest') {
+        setActiveTab('dashboard');
+      }
     }
   }, [activeTab, currentUser]);
 
@@ -362,12 +368,15 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser && users.length > 0) {
+      // Игнорируем синхронизацию для виртуального гостя
+      if (currentUser.role === 'guest') return;
+      
       const syncedUser = users.find(u => u.dbId === currentUser.dbId);
       if (syncedUser) {
         setCurrentUser(syncedUser);
       }
     }
-  }, [users, currentUser?.dbId]);
+  }, [users, currentUser?.dbId, currentUser?.role]);
 
   useEffect(() => {
     if (!firebaseUser || !db) return;
@@ -513,6 +522,19 @@ export default function App() {
     } else {
       setLoginError('Неверный логин или пароль!');
     }
+  };
+
+  const handleGuestLogin = () => {
+    setCurrentUser({
+      dbId: 'guest_user',
+      username: 'guest',
+      inGameName: 'Гость',
+      role: 'guest',
+      rank: 'Guest',
+      warnings: 0
+    });
+    setLoginError('');
+    setActiveTab('dashboard');
   };
 
   const handleLogout = () => {
@@ -665,9 +687,27 @@ export default function App() {
               {isDbLoaded ? 'ВОЙТИ В СИСТЕМУ' : 'СИНХРОНИЗАЦИЯ БАЗЫ...'}
             </button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-black/60 px-2 text-zinc-500 font-bold uppercase tracking-wider">Или</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGuestLogin}
+            disabled={!isDbLoaded}
+            className={`w-full font-bold py-3 px-4 rounded-xl border border-white/20 transition-all duration-200 tracking-wide ${isDbLoaded ? 'bg-transparent text-white hover:bg-white/10 active:scale-95' : 'text-white/30 border-white/5 cursor-wait'}`}
+          >
+            {isDbLoaded ? 'ВОЙТИ КАК ГОСТЬ' : 'ОЖИДАНИЕ...'}
+          </button>
           
           <div className="mt-8 text-center text-xs text-zinc-600 font-medium">
-            Доступ только для членов семьи YARD. <br/> Обратитесь к лидеру для получения доступа.
+            Доступ только для членов семьи YARD. <br/> Обратитесь к лидеру для получения полного доступа.
           </div>
         </div>
       </div>
@@ -726,13 +766,15 @@ export default function App() {
             </button>
           )}
 
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 mt-4 ${activeTab === 'settings' ? 'bg-white text-black font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
-          >
-            <Icon name="Settings" className={`w-4 h-4 transition-all duration-500 ease-in-out ${activeTab === 'settings' ? '' : 'group-hover:rotate-180 group-hover:scale-110'}`} />
-            <span>Настройки</span>
-          </button>
+          {currentUser.role !== 'guest' && (
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className={`group w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm transition-all duration-300 ease-out hover:translate-x-1 mt-4 ${activeTab === 'settings' ? 'bg-white text-black font-bold shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
+            >
+              <Icon name="Settings" className={`w-4 h-4 transition-all duration-500 ease-in-out ${activeTab === 'settings' ? '' : 'group-hover:rotate-180 group-hover:scale-110'}`} />
+              <span>Настройки</span>
+            </button>
+          )}
         </nav>
 
         <div className="p-4 border-t border-white/5 bg-black/20">
@@ -742,7 +784,12 @@ export default function App() {
             </div>
             <div className="truncate flex-1">
               <p className="text-sm font-bold text-white truncate">{currentUser.inGameName}</p>
-              {currentUser.warnings > 0 ? (
+              
+              {currentUser.role === 'guest' ? (
+                <p className="text-[10px] uppercase font-bold text-emerald-500 tracking-wider mt-1">
+                  Гостевой доступ
+                </p>
+              ) : currentUser.warnings > 0 ? (
                 <div className="flex items-center mt-1">
                   <span className="flex items-center text-[10px] uppercase font-black text-red-400 tracking-wider bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]">
                     <Icon name="AlertTriangle" className="w-3 h-3 mr-1 animate-pulse" />
@@ -1170,8 +1217,8 @@ export default function App() {
           </div>
         )}
 
-        {/* НАСТРОЙКИ (СМЕНА ПАРОЛЯ) */}
-        {activeTab === 'settings' && (
+        {/* НАСТРОЙКИ (СМЕНА ПАРОЛЯ) - Только для полноправных пользователей */}
+        {activeTab === 'settings' && currentUser.role !== 'guest' && (
           <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out">
             <h2 className="text-3xl font-black text-white mb-2 flex items-center tracking-tight">
               <Icon name="Settings" className="w-8 h-8 mr-3 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"/>
