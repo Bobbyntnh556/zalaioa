@@ -448,7 +448,7 @@ export default function App() {
     
     // 100% УЛЬТИМАТИВНЫЙ ВХОД ДЛЯ АДМИНА
     // Пускает всегда, даже если база данных еще не успела загрузиться
-    if (loginUser.trim() === 'Denali Walgreens' && loginPass === 'Voki545545') {
+    if (loginUser.trim() === 'admin' && loginPass === '#Yard789#million987/.') {
       const defaultAdmin = {
         dbId: 'admin_user',
         numericId: 1,
