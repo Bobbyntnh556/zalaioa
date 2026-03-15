@@ -1465,6 +1465,29 @@ export default function App() {
                       onChange={e => setNewUser({...newUser, inGameName: e.target.value})} 
                       className="w-full bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3" 
                     />
+                    <select 
+                      value={newUser.rank} 
+                      onChange={e => setNewUser({...newUser, rank: e.target.value})} 
+                      className="w-full bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3"
+                    >
+                      <option value="new">new</option>
+                      <option value="farm">farm</option>
+                      <option value="main">main</option>
+                      <option value="recrut">recrut</option>
+                      <option value="triada">triada</option>
+                      <option value="high">high</option>
+                      <option value="dep boss">dep boss</option>
+                      <option value="boss">boss</option>
+                      <option value="Leader">Leader</option>
+                    </select>
+                    <select 
+                      value={newUser.role} 
+                      onChange={e => setNewUser({...newUser, role: e.target.value})} 
+                      className="w-full bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3"
+                    >
+                      <option value="user">Обычный участник (Просмотр)</option>
+                      <option value="admin">Администратор (Доступ к админ-панели)</option>
+                    </select>
                     <button type="submit" className="w-full bg-white text-black font-black py-3 rounded-xl hover:bg-zinc-200">СОЗДАТЬ</button>
                   </form>
                   {adminUserMessage && <p className="text-sm text-white mt-3 bg-white/10 p-2 rounded">{adminUserMessage}</p>}
