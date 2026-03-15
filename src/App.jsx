@@ -35,7 +35,9 @@ const Icon = ({ name, className = "", title }) => {
     Star: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>,
     CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
     Info: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
-    Image: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>
+    Image: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>,
+    MessageSquare: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></>,
+    Send: <><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>
   };
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -120,7 +122,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'yard-production';
 const getCol = (colName) => isCustomConfig ? collection(db, colName) : collection(db, 'artifacts', appId, 'public', 'data', colName);
 const getDocument = (colName, docId) => isCustomConfig ? doc(db, colName, docId) : doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-// Полный текст устава со всеми 27 пунктами восстановлен
+// Полный текст устава
 const DEFAULT_RULES = `🔥 ОСНОВНЫЕ ПРАВИЛА СЕМЬИ YARD 🔥
 
 1. Уважение к другим
@@ -316,6 +318,11 @@ export default function App() {
   const [gallery, setGallery] = useState([]);
   const [analytics, setAnalytics] = useState({ totalViews: 0, guestViews: 0, userViews: 0 });
 
+  // Состояния для Shoutbox (мини-чат)
+  const [shouts, setShouts] = useState([]);
+  const [newShout, setNewShout] = useState('');
+  const chatEndRef = useRef(null);
+
   // Состояния для Админ-панели
   const [newUser, setNewUser] = useState({ 
     username: '', 
@@ -411,6 +418,13 @@ export default function App() {
       setSettingsBio(currentUser.bio || '');
     }
   }, [activeTab, currentUser]);
+
+  // Автоскролл чата
+  useEffect(() => {
+    if (activeTab === 'dashboard' && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [shouts, activeTab]);
 
   // Инициализация авторизации
   useEffect(() => {
@@ -525,6 +539,10 @@ export default function App() {
       if(d.exists()) setAnalytics(d.data()); 
     });
 
+    const unsubShouts = onSnapshot(getCol('yard_shoutbox'), s => {
+      setShouts(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.timestamp - b.timestamp).slice(-50));
+    });
+
     return () => {
       unsubscribeUsers(); 
       unsubRules(); 
@@ -537,6 +555,7 @@ export default function App() {
       unsubHonor(); 
       unsubGallery();
       unsubAnalytics();
+      unsubShouts();
     };
   }, [firebaseUser]);
 
@@ -556,6 +575,35 @@ export default function App() {
     } catch (e) { 
       console.error(e); 
     }
+  };
+
+  // ==========================================
+  // ФУНКЦИИ SHOUTBOX (МИНИ-ЧАТ)
+  // ==========================================
+  const handleAddShout = async (e) => {
+    e.preventDefault();
+    if (!newShout.trim() || !currentUser || currentUser.role === 'guest') return;
+    
+    try {
+      if (db) {
+        await addDoc(getCol('yard_shoutbox'), {
+          text: newShout.trim(),
+          authorName: currentUser.inGameName,
+          authorId: currentUser.dbId,
+          timestamp: Date.now(),
+          role: currentUser.role,
+          rank: currentUser.rank
+        });
+        setNewShout('');
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteShout = async (id) => {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    try {
+      if (db) await deleteDoc(getDocument('yard_shoutbox', id));
+    } catch (err) { console.error(err); }
   };
 
   // ==========================================
@@ -1154,7 +1202,7 @@ export default function App() {
 
       {/* Основной контент */}
       <main className="flex-1 p-6 md:p-10 overflow-y-auto relative z-10">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
         
         {/* ========================================================= */}
         {/* ГЛАВНАЯ СТРАНИЦА */}
@@ -1256,16 +1304,17 @@ export default function App() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+              
               {/* НОВОСТИ */}
-              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-8">
+              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-[500px]">
                 <h3 className="text-xl font-black text-white mb-6 flex items-center tracking-wide"><Icon name="FileText" className="w-5 h-5 mr-3"/> НОВОСТИ</h3>
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                   {news.length > 0 ? news.map(post => (
                     <div key={post.id} className="p-5 bg-black/40 rounded-xl border border-white/5">
                       <div className="flex justify-between items-start mb-3">
                         <h4 className="font-bold text-white text-lg">{post.title}</h4>
-                        <span className="text-xs text-zinc-500 bg-white/5 px-2 py-1 rounded-md">{post.dateStr}</span>
+                        <span className="text-xs text-zinc-500 bg-white/5 px-2 py-1 rounded-md shrink-0 ml-2">{post.dateStr}</span>
                       </div>
                       <p className="text-zinc-400 text-sm whitespace-pre-wrap">{post.content}</p>
                     </div>
@@ -1274,26 +1323,77 @@ export default function App() {
               </div>
 
               {/* МЕРОПРИЯТИЯ */}
-              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-8">
+              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-[500px]">
                 <h3 className="text-xl font-black text-white mb-6 flex items-center tracking-wide"><Icon name="Calendar" className="w-5 h-5 mr-3"/> МЕРОПРИЯТИЯ</h3>
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                   {events.length > 0 ? events.filter(e => e.timestamp > Date.now() - 86400000).map(ev => {
                     const isSoon = ev.timestamp - Date.now() < 86400000 && ev.timestamp > Date.now(); // Less than 24h
                     return (
                       <div key={ev.id} className={`p-4 rounded-xl border flex items-center space-x-4 ${isSoon ? 'bg-white/5 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]' : 'bg-black/40 border-white/5'}`}>
-                        <div className="flex flex-col items-center justify-center p-3 bg-black rounded-lg border border-white/10 min-w-[70px]">
+                        <div className="flex flex-col items-center justify-center p-3 bg-black rounded-lg border border-white/10 min-w-[70px] shrink-0">
                           <span className="text-xs text-zinc-500 font-bold uppercase">{ev.date.split('-')[2]} {['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'][parseInt(ev.date.split('-')[1])-1]}</span>
                           <span className="text-lg font-black text-white">{ev.time}</span>
                         </div>
-                        <div className="flex-1">
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-sm">{ev.type}</span>
-                          <h4 className="font-bold text-white text-base mt-1">{ev.title}</h4>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-sm inline-block">{ev.type}</span>
+                          <h4 className="font-bold text-white text-base mt-1 truncate">{ev.title}</h4>
                         </div>
                       </div>
                     )
                   }) : <p className="text-zinc-600 text-sm text-center py-4">В ближайшее время событий нет</p>}
                 </div>
               </div>
+
+              {/* LIVE ЧАТ (SHOUTBOX) */}
+              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-[500px] shadow-[0_0_20px_rgba(255,255,255,0.02)]">
+                <h3 className="text-xl font-black text-white mb-4 flex items-center tracking-wide"><Icon name="MessageSquare" className="w-5 h-5 mr-3"/> LIVE ЧАТ</h3>
+                
+                {/* Сообщения */}
+                <div className="flex-1 overflow-y-auto pr-2 space-y-3 mb-4 custom-scrollbar">
+                  {shouts.length > 0 ? shouts.map(shout => (
+                    <div key={shout.id} className="group flex flex-col bg-black/40 rounded-xl p-3 border border-white/5 relative">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          {shout.authorName}
+                          {shout.role === 'admin' && <Icon name="Shield" className="w-3 h-3 text-emerald-400" title="Администратор"/>}
+                        </span>
+                        <span className="text-[10px] text-zinc-500">{new Date(shout.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      </div>
+                      <p className="text-sm text-zinc-300 break-words leading-relaxed">{shout.text}</p>
+                      
+                      {/* Удаление доступно только админу */}
+                      {currentUser.role === 'admin' && (
+                        <button onClick={() => handleDeleteShout(shout.id)} className="absolute top-2 right-2 p-1 bg-red-500/80 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500">
+                          <Icon name="Trash2" className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  )) : <p className="text-zinc-600 text-sm text-center py-4">Сообщений пока нет. Будьте первыми!</p>}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Поле ввода */}
+                {currentUser.role !== 'guest' ? (
+                  <form onSubmit={handleAddShout} className="flex gap-2 mt-auto shrink-0">
+                    <input
+                      type="text"
+                      value={newShout}
+                      onChange={(e) => setNewShout(e.target.value)}
+                      placeholder="Написать сообщение..."
+                      className="flex-1 bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/40"
+                      maxLength={150}
+                    />
+                    <button type="submit" disabled={!newShout.trim()} className="bg-white text-black p-3 rounded-xl hover:bg-zinc-200 disabled:opacity-50 transition-all flex items-center justify-center">
+                      <Icon name="Send" className="w-5 h-5" />
+                    </button>
+                  </form>
+                ) : (
+                  <div className="text-center text-xs text-zinc-500 bg-white/5 p-3 rounded-xl border border-white/5 mt-auto">
+                    Гости не могут писать в чат
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         )}
