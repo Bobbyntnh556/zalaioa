@@ -1369,7 +1369,6 @@ export default function App() {
 
         {/* ========================================================= */}
         {/* АДМИН-ПАНЕЛЬ */}
-        {/* ========================================================= */}
         {activeTab === 'admin' && currentUser.role === 'admin' && (
           <div className="max-w-4xl mx-auto pb-10 animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out">
             <h2 className="text-3xl font-black text-white mb-8 flex items-center tracking-tight"><Icon name="Shield" className="w-8 h-8 mr-3"/> АДМИН-ЦЕНТР</h2>
@@ -1383,6 +1382,61 @@ export default function App() {
                   <div className="bg-black/50 p-5 rounded-xl border border-white/5"><p className="text-zinc-500 text-xs font-bold uppercase mb-1">Пользователи</p><p className="text-4xl font-black text-emerald-400">{analytics.userViews}</p></div>
                   <div className="bg-black/50 p-5 rounded-xl border border-white/5"><p className="text-zinc-500 text-xs font-bold uppercase mb-1">Гости</p><p className="text-4xl font-black text-zinc-400">{analytics.guestViews}</p></div>
                 </div>
+              </div>
+
+              {/* УПРАВЛЕНИЕ АККАУНТАМИ (ИЗМЕНЕНИЕ ЛОГИНА И ИМЕНИ) */}
+              <div className="bg-zinc-900/40 rounded-2xl border border-white/10 p-6 shadow-xl">
+                <h3 className="text-lg font-black text-white mb-4 uppercase tracking-wide flex items-center"><Icon name="Edit" className="w-5 h-5 mr-2" /> Управление аккаунтами</h3>
+                <form onSubmit={handleUpdateUserDetails} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div className="md:col-span-1">
+                    <label className="block text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Пользователь</label>
+                    <select 
+                      value={adminEditSelectedId} 
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setAdminEditSelectedId(id);
+                        const user = users.find(u => u.dbId === id);
+                        if (user) {
+                          setAdminEditUsername(user.username);
+                          setAdminEditInGameName(user.inGameName);
+                        } else {
+                          setAdminEditUsername('');
+                          setAdminEditInGameName('');
+                        }
+                      }}
+                      className="w-full bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3"
+                    >
+                      <option value="" disabled>-- Выберите --</option>
+                      {users.map(u => <option key={u.dbId} value={u.dbId}>{u.inGameName} ({u.username})</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-1">
+                    <label className="block text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Логин на сайте</label>
+                    <input 
+                      type="text" 
+                      value={adminEditUsername} 
+                      onChange={e => setAdminEditUsername(e.target.value)} 
+                      disabled={!adminEditSelectedId}
+                      className="w-full bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3 disabled:opacity-50" 
+                      placeholder="Новый логин"
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <label className="block text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Имя в игре</label>
+                    <input 
+                      type="text" 
+                      value={adminEditInGameName} 
+                      onChange={e => setAdminEditInGameName(e.target.value)} 
+                      disabled={!adminEditSelectedId}
+                      className="w-full bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3 disabled:opacity-50" 
+                      placeholder="Новое имя"
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <button type="submit" disabled={!adminEditSelectedId} className="w-full bg-white text-black font-black py-3 rounded-xl hover:bg-zinc-200 disabled:opacity-50 transition-all active:scale-95">ОБНОВИТЬ</button>
+                  </div>
+                </form>
+                {adminEditMessage.text && <p className={`text-sm mt-3 p-2 rounded font-bold ${adminEditMessage.type === 'success' ? 'bg-white/10 text-white' : 'bg-red-500/10 text-red-400'}`}>{adminEditMessage.text}</p>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
