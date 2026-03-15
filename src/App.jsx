@@ -34,7 +34,8 @@ const Icon = ({ name, className = "", title }) => {
     Clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
     Star: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></>,
     CheckCircle: <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
-    Info: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>
+    Info: <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>,
+    Image: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>
   };
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -283,7 +284,7 @@ const getTabFromUrl = () => {
   try {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
-    const validTabs = ['dashboard', 'members', 'rules', 'fleet', 'admin', 'settings'];
+    const validTabs = ['dashboard', 'members', 'rules', 'fleet', 'gallery', 'admin', 'settings'];
     return validTabs.includes(tab) ? tab : 'dashboard';
   } catch (e) {
     return 'dashboard';
@@ -312,6 +313,7 @@ export default function App() {
   const [honorBoard, setHonorBoard] = useState([]);
   const [logs, setLogs] = useState([]);
   const [fines, setFines] = useState([]);
+  const [gallery, setGallery] = useState([]);
   const [analytics, setAnalytics] = useState({ totalViews: 0, guestViews: 0, userViews: 0 });
 
   // Состояния для Админ-панели
@@ -331,12 +333,14 @@ export default function App() {
   const [adminEventMessage, setAdminEventMessage] = useState('');
   const [adminFleetMessage, setAdminFleetMessage] = useState('');
   const [adminHonorMessage, setAdminHonorMessage] = useState('');
+  const [adminGalleryMessage, setAdminGalleryMessage] = useState('');
 
   const [editStats, setEditStats] = useState({ territories: 12 });
   const [newPost, setNewPost] = useState({ title: '', content: '' });
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '', type: 'Собрание' });
   const [newVehicle, setNewVehicle] = useState({ model: '', plate: '' });
   const [newHonor, setNewHonor] = useState({ dbId: '', reason: '' });
+  const [newImage, setNewImage] = useState({ url: '', caption: '' });
   
   const [adminEditSelectedId, setAdminEditSelectedId] = useState('');
   const [adminEditUsername, setAdminEditUsername] = useState('');
@@ -359,7 +363,14 @@ export default function App() {
   const [settingsNewPass, setSettingsNewPass] = useState('');
   const [settingsMessage, setSettingsMessage] = useState({ text: '', type: '' });
   
+  const [now, setNow] = useState(Date.now());
   const hasCountedForLoad = useRef(false);
+
+  // Таймер реального времени
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Синхронизация URL с активной вкладкой
   useEffect(() => {
@@ -506,6 +517,10 @@ export default function App() {
       setHonorBoard(d.exists() ? (d.data().players || []) : []);
     });
     
+    const unsubGallery = onSnapshot(getCol('yard_gallery'), s => {
+      setGallery(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp - a.timestamp));
+    });
+
     const unsubAnalytics = onSnapshot(getDocument('yard_settings', 'analytics'), d => { 
       if(d.exists()) setAnalytics(d.data()); 
     });
@@ -520,6 +535,7 @@ export default function App() {
       unsubLogs(); 
       unsubFines(); 
       unsubHonor(); 
+      unsubGallery();
       unsubAnalytics();
     };
   }, [firebaseUser]);
@@ -736,6 +752,38 @@ export default function App() {
     if (db) {
       await deleteDoc(getDocument('yard_fleet', id));
     }
+  };
+
+  // Галерея
+  const handleAddImage = async (e) => {
+    e.preventDefault();
+    if (!currentUser || currentUser.role === 'guest') return; // Разрешаем загрузку всем, кроме гостей
+    if (!newImage.url || !newImage.caption) return setAdminGalleryMessage('Заполните поля');
+    
+    try {
+      if (db) {
+        await addDoc(getCol('yard_gallery'), { 
+          imageUrl: newImage.url, 
+          caption: newImage.caption, 
+          addedBy: currentUser.inGameName,
+          timestamp: Date.now() 
+        });
+        setNewImage({ url: '', caption: '' });
+        setAdminGalleryMessage('Фото добавлено!');
+        
+        // Логируем действие, только если это сделал админ
+        if (currentUser.role === 'admin') {
+          logAdminAction(`Добавил фото в галерею: ${newImage.caption}`);
+        }
+        
+        setTimeout(() => setAdminGalleryMessage(''), 3000);
+      }
+    } catch (err) {}
+  };
+
+  const handleDeleteImage = async (id) => {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    if (db) await deleteDoc(getDocument('yard_gallery', id));
   };
 
   // Профили, Штрафы и Достижения
@@ -1043,6 +1091,7 @@ export default function App() {
             { id: 'dashboard', icon: 'Home', label: 'Главная' },
             { id: 'members', icon: 'Users', label: 'Состав семьи' },
             { id: 'fleet', icon: 'Car', label: 'Автопарк' },
+            { id: 'gallery', icon: 'Image', label: 'Галерея' },
             { id: 'rules', icon: 'BookOpen', label: 'Устав' },
           ].map(tab => (
             <button 
@@ -1123,6 +1172,44 @@ export default function App() {
                  </div>
               )}
             </header>
+
+            {/* ТАЙМЕР МЕРОПРИЯТИЙ */}
+            {(() => {
+              const upcomingEvents = events.filter(e => e.timestamp > now).sort((a, b) => a.timestamp - b.timestamp);
+              if (upcomingEvents.length === 0) return null;
+              
+              const nextEvent = upcomingEvents[0];
+              const diff = nextEvent.timestamp - now;
+              const isUrgent = diff <= 15 * 60 * 1000; // 15 минут
+              
+              const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+              const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+              const m = Math.floor((diff / 1000 / 60) % 60);
+              const s = Math.floor((diff / 1000) % 60);
+
+              return (
+                <div className={`relative overflow-hidden p-6 rounded-2xl border shadow-2xl transition-all duration-500 ${isUrgent ? 'bg-red-950/40 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : 'bg-gradient-to-r from-zinc-900 to-black border-white/10'}`}>
+                  {isUrgent && <div className="absolute inset-0 bg-red-500/10 animate-pulse pointer-events-none"></div>}
+                  <div className="relative z-10 flex flex-col md:flex-row items-center justify-between">
+                    <div className="flex items-center mb-4 md:mb-0">
+                      <div className={`p-4 rounded-xl mr-5 ${isUrgent ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'}`}>
+                        <Icon name="Clock" className={`w-8 h-8 ${isUrgent ? 'animate-bounce' : ''}`} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-1">Ближайшее событие</p>
+                        <h3 className="text-2xl font-black text-white">{nextEvent.title} <span className="text-sm font-medium text-zinc-500 bg-black/50 px-2 py-1 rounded ml-2">{nextEvent.type}</span></h3>
+                      </div>
+                    </div>
+                    <div className="flex space-x-3 text-center">
+                      {d > 0 && <div className="bg-black/50 border border-white/10 rounded-lg p-3 min-w-[70px]"><span className="block text-2xl font-black text-white">{d}</span><span className="text-[10px] text-zinc-500 uppercase font-bold">Дней</span></div>}
+                      <div className="bg-black/50 border border-white/10 rounded-lg p-3 min-w-[70px]"><span className={`block text-2xl font-black ${isUrgent ? 'text-red-400' : 'text-white'}`}>{h.toString().padStart(2, '0')}</span><span className="text-[10px] text-zinc-500 uppercase font-bold">Часов</span></div>
+                      <div className="bg-black/50 border border-white/10 rounded-lg p-3 min-w-[70px]"><span className={`block text-2xl font-black ${isUrgent ? 'text-red-400' : 'text-white'}`}>{m.toString().padStart(2, '0')}</span><span className="text-[10px] text-zinc-500 uppercase font-bold">Минут</span></div>
+                      <div className="bg-black/50 border border-white/10 rounded-lg p-3 min-w-[70px]"><span className={`block text-2xl font-black ${isUrgent ? 'text-red-400' : 'text-white'}`}>{s.toString().padStart(2, '0')}</span><span className="text-[10px] text-zinc-500 uppercase font-bold">Секунд</span></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-zinc-900/40 backdrop-blur-md p-6 rounded-2xl border border-white/10 flex items-center space-x-5 group cursor-default">
@@ -1316,6 +1403,75 @@ export default function App() {
                   )}
                 </div>
               )) : <div className="col-span-full text-center text-zinc-500 py-10">Автопарк пуст</div>}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* ГАЛЕРЕЯ */}
+        {/* ========================================================= */}
+        {activeTab === 'gallery' && (
+          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out">
+            <h2 className="text-3xl font-black text-white mb-8 tracking-tight">СЕМЕЙНАЯ ГАЛЕРЕЯ</h2>
+            <p className="text-zinc-400 mb-8">Делитесь лучшими моментами семьи YARD.</p>
+
+            {/* Форма загрузки фото для всех участников */}
+            {currentUser.role !== 'guest' && (
+              <div className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/10 p-6 shadow-xl mb-8">
+                <form onSubmit={handleAddImage} className="flex flex-col md:flex-row gap-4">
+                  <input 
+                    type="url" 
+                    placeholder="Ссылка на картинку (Imgur/Discord)" 
+                    value={newImage.url} 
+                    onChange={e => setNewImage({...newImage, url: e.target.value})} 
+                    className="flex-1 bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-white/40" 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Подпись (например: ВЗМ 24.10.2023)" 
+                    value={newImage.caption} 
+                    onChange={e => setNewImage({...newImage, caption: e.target.value})} 
+                    className="w-full md:w-64 bg-black/50 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-white/40" 
+                  />
+                  <button type="submit" className="bg-white text-black font-black px-8 py-3 rounded-xl hover:bg-zinc-200 active:scale-95 transition-all">ДОБАВИТЬ</button>
+                </form>
+                {adminGalleryMessage && <p className="text-sm text-white mt-3 bg-white/10 p-2 rounded w-fit">{adminGalleryMessage}</p>}
+              </div>
+            )}
+
+            <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+              {gallery.length > 0 ? gallery.map(img => (
+                <div key={img.id} className="break-inside-avoid relative group rounded-2xl overflow-hidden bg-zinc-900/40 border border-white/10">
+                  <img 
+                    src={img.imageUrl} 
+                    alt={img.caption} 
+                    className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
+                    onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300/111111/333333?text=Image+Not+Found'; }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-white font-bold text-lg mb-1 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">{img.caption}</p>
+                        <p className="text-zinc-400 text-xs translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">Добавил: {img.addedBy}</p>
+                      </div>
+                      {/* Удаление доступно только админам */}
+                      {currentUser.role === 'admin' && (
+                        <button 
+                          onClick={() => handleDeleteImage(img.id)} 
+                          className="p-2 bg-red-500/80 text-white rounded-lg hover:bg-red-500 active:scale-95 transition-all translate-y-4 group-hover:translate-y-0 duration-300 delay-100"
+                          title="Удалить фото"
+                        >
+                          <Icon name="Trash2" className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="col-span-full text-center text-zinc-600 py-20 font-medium">
+                  Галерея пока пуста. Вскоре здесь появятся наши лучшие моменты!
+                </div>
+              )}
             </div>
           </div>
         )}
